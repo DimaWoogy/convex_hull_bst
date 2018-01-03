@@ -25,11 +25,9 @@ bool areEqualHulls(const TContainer1& first, const TContainer2& second, TPred pr
 {
    if (first.size() != second.size()) return false;
 
-   auto it = std::find_if(first.begin(), first.end(),
-      [&](const Point& point)
-      {
-         return pred(point, *second.begin());
-      });
+   auto it = first.begin();
+   while (it != first.end() && !pred(*it, *second.begin()))
+      ++it;
    if (it == first.end())
       return false;
 

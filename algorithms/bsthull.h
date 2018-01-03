@@ -6,6 +6,7 @@
 #include <boost/pool/pool_alloc.hpp>
 
 #include "point.h"
+#include "cyclicset.h"
 
 namespace algorithms
 {
@@ -15,29 +16,32 @@ struct BstConvexHull
    void AddPoint(const Point& pt)
    {
       const Point point = pt - center;
-      auto next = getIt(convexHull.upper_bound(point));
-      auto prev = prevIt(next);
+      auto next = convexHull.upper_bound(point);
+      auto prev = next;
+      --prev;
 
       if (ccw(*prev, point, *next))
       {
          while (true)
          {
-            const auto afterNext = nextIt(next);
+            auto afterNext = next;
+            ++afterNext;
             if (ccw(point, *next, *afterNext))
                break;
-            convexHull.erase(next);
-            next = afterNext;
+            ++next;
          }
 
          while (true)
          {
-            const auto beforePrev = prevIt(prev);
+            auto beforePrev = prev;
+            --beforePrev;
             if (ccw(*beforePrev, *prev, point))
                break;
-            convexHull.erase(prev);
-            prev = beforePrev;
+            --prev;
          }
-         convexHull.emplace_hint(prev, point);
+         ++prev;
+         convexHull.erase(prev, next);
+         convexHull.insert(point);
       }
    }
 
@@ -71,9 +75,9 @@ struct BstConvexHull
      }
 
      BstConvexHull convexHull{ (minPoint + maxPoint + furthestPoint) / 3 };
-     convexHull.convexHull.emplace(minPoint - convexHull.center);
-     convexHull.convexHull.emplace(maxPoint - convexHull.center);
-     convexHull.convexHull.emplace(furthestPoint - convexHull.center);
+     convexHull.convexHull.insert(minPoint - convexHull.center);
+     convexHull.convexHull.insert(maxPoint - convexHull.center);
+     convexHull.convexHull.insert(furthestPoint - convexHull.center);
 
      for (const Point& point : points)
         convexHull.AddPoint(point);
@@ -96,11 +100,7 @@ struct BstConvexHull
       }
    };
 
-   // TODO: I never free singleton memory
-   using setallocator = boost::fast_pool_allocator<Point,
-         boost::default_user_allocator_new_delete, boost::details::pool::default_mutex, 1048576>;
-
-   const std::set<Point, less, setallocator>& GetPoints() const noexcept { return convexHull; }
+   const utils::CyclicSet<Point, less>& GetPoints() const noexcept { return convexHull; }
    const Point& GetCenter() const noexcept { return center; }
 
 private:
@@ -111,21 +111,8 @@ private:
          (a.x*b.y - b.x*a.y) > 0;
    }
 
-   std::set<Point, less>::iterator getIt(std::set<Point, less>::iterator it) const noexcept
-   {
-      return it != convexHull.end() ? it : convexHull.begin();
-   }
-   std::set<Point, less>::iterator nextIt(std::set<Point, less>::iterator it) const noexcept
-   {
-      return getIt(std::next(it));
-   }
-   std::set<Point, less>::iterator prevIt(std::set<Point, less>::iterator it) const noexcept
-   {
-      return it != convexHull.begin() ? std::prev(it) : std::prev(convexHull.end());
-   }
-
    const Point center;
-   std::set<Point, less, setallocator> convexHull;
+   utils::CyclicSet<Point, less> convexHull;
 };
 
 }
